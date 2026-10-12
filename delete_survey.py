@@ -1,15 +1,16 @@
-# End of a voting cycle: removes the live surveys, wipes the votes, and resets results.html to the blank template.
+# Ends the cycle: removes both live surveys and the collected ballots, and resets results.html to the blank template.
+import glob
 import os
 import re
 
 LIVE_SURVEYS = ["live_survey_offense.html", "live_survey_defense.html"]
+BALLOT_DIR = "ballots"
 
 
 def remove_file(path):
-    if os.path.exists(path):
-        os.chmod(path, 0o666)  # the live surveys are locked read-only
-        os.remove(path)
-        print("Removed", path)
+    os.chmod(path, 0o666)  # the live surveys are locked read-only
+    os.remove(path)
+    print("Removed", path)
 
 
 def reset_results():
@@ -22,12 +23,12 @@ def reset_results():
 
 
 def main():
-    if input("Delete the live surveys and all votes? This can't be undone. Type YES: ") != "YES":
+    if input("Delete both live surveys, all ballots, and the results? This can't be undone. Type YES: ") != "YES":
         print("Cancelled.")
         return
-    for survey in LIVE_SURVEYS:
-        remove_file(survey)
-    remove_file("votes.txt")
+    for path in LIVE_SURVEYS + glob.glob(os.path.join(BALLOT_DIR, "*.zip")) + glob.glob(os.path.join(BALLOT_DIR, "*.json")):
+        if os.path.exists(path):
+            remove_file(path)
     reset_results()
 
 

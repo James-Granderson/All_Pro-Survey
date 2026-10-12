@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Create All-Pro Surveys</title>
+<style>
+:root{--bg:#f3f4f1;--fg:#16181a;--card:#fff;--mut:#5d646b;--ac:#0b6b3a;--bd:#d5d9d6}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--fg:#eaeeea;--card:#181d1a;--mut:#9aa39d;--ac:#4fd18b;--bd:#2c342f}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+main{max-width:620px;margin:0 auto;padding:16px}h1{font-size:24px}h2{font-size:18px;margin:0 0 8px}h2 small{color:var(--mut);font-weight:400;font-size:13px}
+.sub{color:var(--mut)}.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:10px 0}
+input,select{width:100%;box-sizing:border-box;padding:10px;margin-top:6px;font:inherit;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}
+button{font:inherit;color:var(--fg)}.tabs{display:flex;gap:8px}.tabs button{flex:1;padding:10px;border:2px solid var(--bd);border-radius:10px;background:var(--card)}
+.tabs .on{border-color:var(--ac);font-weight:600}.chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:4px 4px 4px 10px;margin:0 6px 6px 0}
+.x{border:0;background:none;font-size:18px;padding:0 8px;color:var(--mut)}.r{display:block;width:100%;text-align:left;padding:10px;margin-top:4px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+.go{width:100%;margin-top:14px;padding:14px;border:0;border-radius:10px;background:var(--ac);color:var(--bg);font-weight:600;font-size:17px}
+.ghost{width:100%;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:10px;background:none}
+</style></head><body><main>
+<h1>Create All-Pro surveys</h1>
+<div class="card"><label>Choose the NeonSportz stats zip<input type="file" id="zip" accept=".zip"></label><p id="status" class="sub"></p></div>
+<div id="app" hidden>
+  <div class="tabs"><button data-tab="offense" class="on">Offense</button><button data-tab="defense">Defense</button></div>
+  <div id="cards"></div>
+  <button class="go" id="dl"></button>
+  <p id="summary" class="sub"></p>
+  <button class="ghost" id="unlock" hidden>Unlock (allow a new survey)</button>
+  <button class="ghost" id="reset">Clear this side</button>
+</div></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+const TEMPLATE = "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n<title>All-Pro Voting<\/title>\n<style>\n:root{--bg:#f3f4f1;--fg:#16181a;--card:#fff;--mut:#5d646b;--ac:#0b6b3a;--bd:#d5d9d6}\n@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--fg:#eaeeea;--card:#181d1a;--mut:#9aa39d;--ac:#4fd18b;--bd:#2c342f}}\nbody{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}\nmain{max-width:560px;margin:0 auto;padding:16px}\nh2{margin:28px 0 2px;font-size:20px}.sub{color:var(--mut);margin:0 0 8px}\n.c{display:block;width:100%;text-align:left;background:var(--card);color:var(--fg);border:2px solid var(--bd);border-radius:10px;padding:10px 12px;margin:8px 0;font:inherit}\n.c.on{border-color:var(--ac)}.c b{display:block}.c span{color:var(--mut);font-size:14px;margin-right:12px;display:inline-block}\n.c.on b::before{content:\"\\2713  \";color:var(--ac)}\ninput,textarea,select{width:100%;box-sizing:border-box;padding:10px;font:inherit;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--fg)}\n.go{width:100%;margin-top:20px;padding:14px;border:0;border-radius:10px;background:var(--ac);color:var(--bg);font:600 17px system-ui}\n.go:disabled{opacity:.4}#out{margin-top:16px}\n<\/style><\/head><body><main>\n<h1 id=\"t\">All-Pro Voting<\/h1>\n<p class=\"sub\" id=\"intro\">Tap a player to pick them. Picking more than the allowed number drops your oldest pick. You confirm at the end.<\/p>\n<label id=\"teamlabel\">Your team<select id=\"voter\"><\/select><\/label>\n<div id=\"b\"><\/div>\n<button class=\"go\" id=\"go\">Review and submit<\/button>\n<div id=\"out\"><\/div>\n<\/main>\n<script src=\"https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js\"><\/script>\n<script>\n// create_survey.py replaces the placeholder below with:\n// {id, title, teams: [team names for the dropdown], positions: [{pos, slots, cands: [<one CSV row per candidate, as an object>]}]}\nconst BALLOT = /*BALLOT*/null;\n\n// What to show under each candidate: [label, CSV column, noStar]. Leader stars are computed here.\nconst RUSH = [[\"Carries\",\"rushTotalAtt\"],[\"Rushing Yards\",\"rushTotalYds\"],[\"Rushing TDs\",\"rushTotalTDs\"]];\nconst REC = [[\"Receptions\",\"recTotalCatches\"],[\"Receiving Yards\",\"recTotalYds\"],[\"Receiving TDs\",\"recTotalTDs\"]];\nconst DEF = [[\"Tackles\",\"defTotalTackles\"],[\"Sacks\",\"defTotalSacks\"],[\"Defl\",\"defTotalDeflections\"],[\"FF\",\"defTotalForcedFum\"]];\nconst DB = [[\"Tackles\",\"defTotalTackles\"],[\"INT\",\"defTotalInts\"],[\"Defl\",\"defTotalDeflections\"],[\"FF\",\"defTotalForcedFum\"],[\"TD\",\"defTotalTDs\"]];\nconst STATS = {\n  QB: [[\"Pass Yds\",\"passTotalYds\"],[\"Pass TDs\",\"passTotalTDs\"],[\"INTs\",\"passTotalInts\",1],[\"Rating\",\"passerAvgRating\"]],\n  RB: RUSH.concat([[\"Receiving Yards\",\"recTotalYds\"],[\"Receiving TDs\",\"recTotalTDs\"],[\"Fumbles\",\"rushTotalFum\",1]]),\n  APO: RUSH.concat(REC),\n  WR: REC.concat([[\"RAC\",\"recTotalYdsAfterCatch\"]]), TE: REC,\n  EDGE: DEF, IDL: DEF, LB: DEF.concat([[\"INT\",\"defTotalInts\"],[\"TD\",\"defTotalTDs\"]]),\n  CB: DB.concat([[\"Sacks\",\"defTotalSacks\"]]), FS: DB, SS: DB.concat([[\"Sacks\",\"defTotalSacks\"]]),\n  K: [[\"FG Made\",\"fGTotalMade\"],[\"FG Att\",\"fGTotalAtt\"],[\"FG %\",\"fGAvgCompPct\"],[\"Long\",\"fGTotalLongest\"],[\"XP Made\",\"xPTotalMade\"]],\n};\nconst num = v => { const n = parseFloat(String(v).replace(/,/g, \"\")); return isNaN(n) ? null : n; };\nconst fmt = v => { const n = num(v); return n === null ? \"-\" : n.toLocaleString(\"en-US\", {maximumFractionDigits: 1}); };\n\nfunction prepare(ballot) {   // raw rows in, display-ready candidates out\n  return ballot.positions.map(p => {\n    const set = STATS[p.pos] || [];\n    const cands = p.cands.map(r => ({name: r.player__fullName, team: r.team__abbrName, tag: r.player__rosterId,\n      stats: set.map(([l, col]) => ({l, v: fmt(r[col]), n: num(r[col]), star: false}))}));\n    set.forEach(([l, col, noStar], i) => {\n      if (noStar || cands.length < 2) return;\n      const top = Math.max(...cands.map(c => c.stats[i].n ?? -Infinity));\n      if (top > 0) cands.forEach(c => { c.stats[i].star = c.stats[i].n === top; });\n    });\n    return {pos: p.pos, slots: p.slots, cands};\n  });\n}\n// ---- page ----\nconst esc = t => String(t).replace(/[&<>\"]/g, c => ({\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\"}[c]));\nconst $ = id => document.getElementById(id), sel = {}, votes = {};   // sel = pick order per position; votes = the counter, 1 per picked candidate\nlet P = [];\n\nfunction draw() {\n  $(\"b\").innerHTML = P.map(p => `<h2>${esc(p.pos)}<\/h2><p class=\"sub\">Pick ${p.slots}<\/p>` + p.cands.map((c, i) =>\n    `<button class=\"c${votes[p.pos][i] ? \" on\" : \"\"}\" data-p=\"${p.pos}\" data-i=\"${i}\"><b>${esc(c.name)} <small>${esc(c.team)}<\/small><\/b>` +\n    c.stats.map(s => `<span>${s.v}${s.star ? \"*\" : \"\"} ${esc(s.l)}<\/span>`).join(\"\") + \"<\/button>\").join(\"\")).join(\"\");\n}\nfunction pick(pos, i) {\n  const p = P.find(x => x.pos === pos), a = sel[pos], at = a.indexOf(i);\n  if (at >= 0) a.splice(at, 1);\n  else { a.push(i); if (a.length > p.slots) a.shift(); }   // pop from the front\n  votes[pos] = p.cands.map((_, j) => a.includes(j) ? 1 : 0);   // counter, indexed by place in the candidate list\n  draw();\n}\nconst sideOf = b => b.title.split(\" \")[0].toLowerCase();   // \"Offensive All-Pro\" -> \"offensive\"\nasync function save(b) {   // the voter's ballot goes into a zip they send back\n  const text = JSON.stringify(b, null, 1), base = `ballot_${b.team.replace(/[^A-Za-z0-9]+/g, \"_\")}_${sideOf(b)}`;\n  let bytes, name, type;\n  if (typeof JSZip === \"undefined\") { bytes = new TextEncoder().encode(text); name = base + \".json\"; type = \"application/json\"; }   // fallback if the zip library didn't load\n  else { const z = new JSZip(); z.file(\"ballot.json\", text); bytes = await z.generateAsync({type: \"uint8array\"}); name = base + \".zip\"; type = \"application/zip\"; }\n  const a = document.createElement(\"a\"); a.href = URL.createObjectURL(new Blob([bytes], {type})); a.download = name; a.click();\n}\nfunction done(b) {\n  [\"go\", \"b\", \"intro\", \"teamlabel\"].forEach(id => $(id).style.display = \"none\");\n  $(\"out\").innerHTML = `<h2>Ballot submitted<\/h2><p class=\"sub\">Your ballot downloaded as a zip. Send that file to the commissioner. This device is locked to ${esc(b.team)}'s ballot, and only your first ballot counts. Picked the wrong team? Tell the commissioner.<\/p><button class=\"go\" id=\"again\">Download it again<\/button>`;\n  $(\"again\").onclick = () => save(b);\n}\n// AUTH HOOK: swap for the Discord account id once login exists.\nconst getVoter = () => $(\"voter\").value.trim();\n\nasync function submit() {\n  const v = getVoter();\n  if (!v) return alert(\"Pick your team first.\");\n  const miss = P.filter(p => votes[p.pos].reduce((a, b) => a + b, 0) !== p.slots).map(p => p.pos);\n  if (miss.length) return alert(\"Finish these first: \" + miss.join(\", \"));\n  const picks = {};\n  P.forEach(p => picks[p.pos] = p.cands.filter((_, j) => votes[p.pos][j]).map(c => c.name));\n  const lines = Object.entries(picks).map(([k, n]) => `${k}: ${n.join(\", \") || \"-\"}`).join(\"\\n\");\n  if (!confirm(\"Confirm your ballot? This locks it.\\n\\n\" + lines)) return;\n  const b = {survey: BALLOT.id, title: BALLOT.title, team: v, submitted: Date.now(), picks};\n  try { localStorage.setItem(\"voted:\" + BALLOT.id, JSON.stringify(b)); } catch (e) {}\n  await save(b);\n  done(b);\n}\nif (!BALLOT) document.body.innerHTML = \"<main><p>This is the template. Run create_survey.py to build a survey from it.<\/p><\/main>\";\nelse {\n  $(\"t\").textContent = BALLOT.title || \"All-Pro Voting\";\n  $(\"voter\").innerHTML = '<option value=\"\">Pick your team\u2026<\/option>' + (BALLOT.teams || []).map(t => `<option>${esc(t)}<\/option>`).join(\"\");\n  P = prepare(BALLOT); P.forEach(p => { sel[p.pos] = []; votes[p.pos] = p.cands.map(() => 0); });\n  let prev = null; try { prev = localStorage.getItem(\"voted:\" + BALLOT.id); } catch (e) {}\n  if (prev) { try { done(JSON.parse(prev)); } catch (e) { prev = null; } }\n  if (!prev) { draw(); $(\"go\").onclick = submit; $(\"b\").onclick = e => { const el = e.target.closest(\".c\"); if (el) pick(el.dataset.p, +el.dataset.i); }; }\n}\n<\/script><\/body><\/html>\n";
+// [position, candidates to pick, votes per voter, CSV positions that feed it]
+const CFG = {
+  offense: [["QB",3,1,["QB"]],["RB",3,1,["HB"]],["WR",6,2,["WR"]],["TE",3,1,["TE"]],["APO",3,1,["HB"]]],
+  defense: [["EDGE",5,2,["LEDGE","REDGE"]],["IDL",4,2,["DT"]],["LB",6,3,["MIKE","WILL","SAM"]],["CB",5,2,["CB"]],["FS",3,1,["FS"]],["SS",3,1,["SS"]]],
+};
+const TITLE = {offense: "Offensive All-Pro", defense: "Defensive All-Pro"};
+const FILES = ["passing","rushing","receiving","defense","kicking","punting"];
+let players = null; const picks = {};
+
+async function loadZip(buf) {   // every CSV in the zip -> one record per player, joined on rosterId. File names don't matter.
+  const zip = await JSZip.loadAsync(buf), out = {}; loadZip.found = [];
+  for (const entry of Object.values(zip.files)) {
+    const base = entry.name.split("/").pop();
+    if (entry.dir || !/\.csv$/i.test(base) || base.startsWith(".") || entry.name.includes("__MACOSX")) continue;   // skip Mac junk files
+    loadZip.found.push(base);
+    const rows = Papa.parse(await entry.async("string"), {header: true, skipEmptyLines: true, transformHeader: h => h.replace(/^\uFEFF/, "").trim()}).data;
+    for (const r of rows) if (r.player__rosterId) Object.assign(out[r.player__rosterId] ||= {}, r);
+  }
+  return out;
+}
+const posList = pos => [].concat(...Object.values(CFG)).find(c => c[0] === pos)[3];
+function find(pos, text, team) {
+  const set = posList(pos), have = picks[pos] || [];
+  return Object.values(players).filter(p => set.includes(p.player__position) && !have.includes(p.player__rosterId)
+      && (!team || p.team__displayName === team) && (!text || p.player__fullName.toLowerCase().includes(text.toLowerCase())))
+    .sort((a, b) => (+b.gamesPlayed || 0) - (+a.gamesPlayed || 0)).slice(0, 12);
+}
+function makeLive(side) {       // survey.html template + this side's picks -> the live survey page
+  const positions = CFG[side].map(([pos, , slots]) => ({pos, slots, cands: (picks[pos] || []).map(t => players[t])})).filter(p => p.cands.length);
+  if (!positions.length) return null;
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(4)), b => b.toString(16).padStart(2, "0")).join("");
+  const teams = [...new Set(Object.values(players).map(p => p.team__displayName))].sort();
+  const ballot = JSON.stringify({id, title: TITLE[side], teams, positions}).replace(/</g, "\\u003c");
+  return TEMPLATE.replace("/*BALLOT*/null", () => ballot);
+}
+// ---- ui ----
+const $ = id => document.getElementById(id), esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let tab = "offense";
+const LIVE = side => { try { return localStorage.getItem("live:" + side); } catch (e) { return null; } };   // the locked survey, saved when it is created
+function setButtons() {
+  const locked = !!LIVE(tab);
+  $("dl").textContent = locked ? `Download the locked ${tab} survey again` : `Create ${tab} survey`;
+  $("unlock").hidden = !locked;
+  if (locked) $("summary").textContent = `The ${tab} survey is locked: only one exists. Unlock it to create a new one.`;
+}
+function renderCards() {
+  const teamOpts = [...new Set(Object.values(players).map(p => p.team__displayName))].sort().map(t => `<option>${esc(t)}</option>`).join("");
+  $("cards").innerHTML = CFG[tab].map(([pos, want, slots]) => {
+    const have = picks[pos] || [];
+    const chips = have.map(t => `<span class="chip">${esc(players[t].player__fullName)} <small>${esc(players[t].team__abbrName)}</small><button class="x" data-rm="${pos}" data-tag="${t}" aria-label="Remove">×</button></span>`).join("");
+    return `<section class="card"><h2>${pos} <small>${have.length} of ${want} candidates · voters pick ${slots}</small></h2><div>${chips}</div>
+      <input class="q" data-pos="${pos}" placeholder="Search ${pos} by name"><select class="tm" data-pos="${pos}"><option value="">All teams</option>${teamOpts}</select><div id="res-${pos}"></div></section>`;
+  }).join("");
+    const n = CFG[tab].reduce((s, c) => s + (picks[c[0]] || []).length, 0);
+  $("summary").textContent = n ? `${n} candidates picked on this side.` : "Nothing picked on this side yet.";
+  setButtons();
+}
+function updateRes(pos) {
+  const card = document.querySelector(`.q[data-pos="${pos}"]`).parentElement;
+  const text = card.querySelector(".q").value.trim(), team = card.querySelector(".tm").value;
+  $("res-" + pos).innerHTML = (text || team) ? find(pos, text, team).map(p =>
+    `<button class="r" data-add="${pos}" data-tag="${p.player__rosterId}">${esc(p.player__fullName)} (${esc(p.player__position)} - ${esc(p.team__abbrName)}) · ${esc(p.gamesPlayed || "?")} GP</button>`).join("") || '<p class="sub">No matches.</p>' : "";
+}
+$("zip").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $("status").textContent = "Reading…";
+  try { players = await loadZip(await f.arrayBuffer()); const n = Object.keys(players).length, found = loadZip.found;
+    if (!n) { $("status").textContent = found.length ? `Found ${found.length} CSV files (${found.slice(0, 4).join(", ")}) but none had player__rosterId, so this doesn't look like a NeonSportz stats export.` : "No CSV files found inside that zip."; return; }
+    $("status").textContent = `Loaded ${n} players from ${found.length} CSV files.`; $("app").hidden = false; renderCards(); }
+  catch (err) { $("status").textContent = "Couldn't read that zip."; }
+};
+document.addEventListener("input", e => { if (e.target.classList.contains("q")) updateRes(e.target.dataset.pos); });
+document.addEventListener("change", e => { if (e.target.classList.contains("tm")) updateRes(e.target.dataset.pos); });
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b === t)); renderCards(); }
+  else if (t.dataset.add) { (picks[t.dataset.add] ||= []).push(t.dataset.tag); renderCards(); }
+  else if (t.dataset.rm) { picks[t.dataset.rm] = picks[t.dataset.rm].filter(x => x !== t.dataset.tag); renderCards(); }
+  else if (t.id === "reset") { CFG[tab].forEach(c => picks[c[0]] = []); renderCards(); }
+  else if (t.id === "dl") {
+    let html = LIVE(tab); const fresh = !html;
+    if (fresh) {
+      html = makeLive(tab); if (!html) return alert("Pick at least one player first.");
+      try { localStorage.setItem("live:" + tab, html); } catch (e) {}   // lock: from now on this side can only re-download this same survey
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html], {type: "text/html"})); a.download = `live_survey_${tab}.html`; a.click();
+    setButtons(); $("summary").textContent = fresh ? `Created and locked live_survey_${tab}.html. Check your downloads.` : "Downloaded again.";
+  }
+  else if (t.id === "unlock") {
+    if (confirm(`Unlock the ${tab} survey so you can create a new one? Do this only if you are starting over.`)) { try { localStorage.removeItem("live:" + tab); } catch (e) {} renderCards(); }
+  }
+});
+</script></body></html>

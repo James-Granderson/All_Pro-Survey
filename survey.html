@@ -16,12 +16,13 @@ input,textarea,select{width:100%;box-sizing:border-box;padding:10px;font:inherit
 .go:disabled{opacity:.4}#out{margin-top:16px}
 </style></head><body><main>
 <h1 id="t">All-Pro Voting</h1>
-<p class="sub">Tap a player to pick them. Picking more than the allowed number drops your oldest pick. You confirm at the end.</p>
-<label>Your team<select id="voter"></select></label>
+<p class="sub" id="intro">Tap a player to pick them. Picking more than the allowed number drops your oldest pick. You confirm at the end.</p>
+<label id="teamlabel">Your team<select id="voter"></select></label>
 <div id="b"></div>
 <button class="go" id="go">Review and submit</button>
 <div id="out"></div>
 </main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // create_survey.py replaces the placeholder below with:
 // {id, title, teams: [team names for the dropdown], positions: [{pos, slots, cands: [<one CSV row per candidate, as an object>]}]}
@@ -74,25 +75,35 @@ function pick(pos, i) {
   votes[pos] = p.cands.map((_, j) => a.includes(j) ? 1 : 0);   // counter, indexed by place in the candidate list
   draw();
 }
-function done(code) {
-  $("go").style.display = "none"; $("b").style.display = "none";
-  $("out").innerHTML = `<h2>Ballot locked</h2><p class="sub">Send this code to the commissioner. This device is locked to your team's ballot.</p><textarea rows="5" readonly>${code}</textarea>`;
+const sideOf = b => b.title.split(" ")[0].toLowerCase();   // "Offensive All-Pro" -> "offensive"
+async function save(b) {   // the voter's ballot goes into a zip they send back
+  const text = JSON.stringify(b, null, 1), base = `ballot_${b.team.replace(/[^A-Za-z0-9]+/g, "_")}_${sideOf(b)}`;
+  let bytes, name, type;
+  if (typeof JSZip === "undefined") { bytes = new TextEncoder().encode(text); name = base + ".json"; type = "application/json"; }   // fallback if the zip library didn't load
+  else { const z = new JSZip(); z.file("ballot.json", text); bytes = await z.generateAsync({type: "uint8array"}); name = base + ".zip"; type = "application/zip"; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([bytes], {type})); a.download = name; a.click();
+}
+function done(b) {
+  ["go", "b", "intro", "teamlabel"].forEach(id => $(id).style.display = "none");
+  $("out").innerHTML = `<h2>Ballot submitted</h2><p class="sub">Your ballot downloaded as a zip. Send that file to the commissioner. This device is locked to ${esc(b.team)}'s ballot.</p><button class="go" id="again">Download it again</button>`;
+  $("again").onclick = () => save(b);
 }
 // AUTH HOOK: swap for the Discord account id once login exists.
 const getVoter = () => $("voter").value.trim();
 
-function submit() {
+async function submit() {
   const v = getVoter();
   if (!v) return alert("Pick your team first.");
   const miss = P.filter(p => votes[p.pos].reduce((a, b) => a + b, 0) !== p.slots).map(p => p.pos);
-  if (miss.length && !confirm("Incomplete: " + miss.join(", ") + ". Submit anyway?")) return;
+  if (miss.length) return alert("Finish these first: " + miss.join(", "));
   const picks = {};
   P.forEach(p => picks[p.pos] = p.cands.filter((_, j) => votes[p.pos][j]).map(c => c.name));
   const lines = Object.entries(picks).map(([k, n]) => `${k}: ${n.join(", ") || "-"}`).join("\n");
   if (!confirm("Confirm your ballot? This locks it.\n\n" + lines)) return;
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify({s: BALLOT.id, v, p: picks}))));
-  try { localStorage.setItem("voted:" + BALLOT.id, code); } catch (e) {}
-  done(code);
+  const b = {survey: BALLOT.id, title: BALLOT.title, team: v, submitted: Date.now(), picks};
+  try { localStorage.setItem("voted:" + BALLOT.id, JSON.stringify(b)); } catch (e) {}
+  await save(b);
+  done(b);
 }
 if (!BALLOT) document.body.innerHTML = "<main><p>This is the template. Run create_survey.py to build a survey from it.</p></main>";
 else {
@@ -100,7 +111,7 @@ else {
   $("voter").innerHTML = '<option value="">Pick your team…</option>' + (BALLOT.teams || []).map(t => `<option>${esc(t)}</option>`).join("");
   P = prepare(BALLOT); P.forEach(p => { sel[p.pos] = []; votes[p.pos] = p.cands.map(() => 0); });
   let prev = null; try { prev = localStorage.getItem("voted:" + BALLOT.id); } catch (e) {}
-  if (prev) done(prev);
-  else { draw(); $("go").onclick = submit; $("b").onclick = e => { const el = e.target.closest(".c"); if (el) pick(el.dataset.p, +el.dataset.i); }; }
+  if (prev) { try { done(JSON.parse(prev)); } catch (e) { prev = null; } }
+  if (!prev) { draw(); $("go").onclick = submit; $("b").onclick = e => { const el = e.target.closest(".c"); if (el) pick(el.dataset.p, +el.dataset.i); }; }
 }
 </script></body></html>
