@@ -29,6 +29,7 @@ def main():
     for path in LIVE_SURVEYS + glob.glob(os.path.join(BALLOT_DIR, "*.zip")) + glob.glob(os.path.join(BALLOT_DIR, "*.json")):
         if os.path.exists(path):
             remove_file(path)
+    print("Everything under ballots has been deleted.")
     reset_results()
 
 
