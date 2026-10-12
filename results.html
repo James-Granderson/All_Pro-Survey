@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>All-Pro Results</title>
+<style>
+:root{--bg:#f3f4f1;--fg:#16181a;--mut:#5d646b;--bd:#d5d9d6}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--fg:#eaeeea;--mut:#9aa39d;--bd:#2c342f}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}h2{margin:24px 0 4px}
+table{width:100%;border-collapse:collapse}td{padding:6px 0;border-top:1px solid var(--bd)}td+td{text-align:right;width:48px;font-weight:600}
+</style></head><body><main id="m"></main>
+<script>
+const RESULTS = /*RESULTS*/null;
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const m = document.getElementById("m");
+if (!RESULTS) m.innerHTML = "<p>This is the template. Run count_ballots.py to fill it in.</p>";
+else m.innerHTML = "<h1>All-Pro votes</h1>" + RESULTS.positions.map(p =>
+  `<h2>${esc(p.pos)}</h2><table>` + p.ranked.map(([n, c]) => `<tr><td>${esc(n)}</td><td>${c}</td></tr>`).join("") + "</table>").join("");
+</script></body></html>
